@@ -5,10 +5,18 @@
 
 set -e
 
+version="version 0.2.1"
+
 # This should be name to make it eazier.
 option="${1}"
 priv="${2}"
 key="${3}"
+
+if [ "${option}" == "-m" ] || [ "${option}" == "--module" ] ||
+[ "${option}" == "-a" ] || [ "${option}" == "--module-all" ] ||
+[ "${option}" == "-i" ] || [ "${option}" == "--image" ] ; then
+	path="${4}"
+fi
 
 # For some reason this is required.
 private=$(echo ${2} | awk -F'.priv' '{print $1}')
@@ -16,13 +24,23 @@ signingder=$(echo ${key} | awk -F'.der' '{print $1}')
 signingpem=$(echo ${key} | awk -F'.pem' '{print $1}')
 
 # This is only for use when key generation option is used.
-if [ "${option}" == "-g" ] || [ "${option}" "--generate-keys" ] ; then
-
+if [ "${option}" == "-g" ] || [ "${option}" == "--generate-keys" ] ; then
+	if [ "${2}" == "" ] ; then
+		rsa="2048"
+	else
+		rsa="${2}"
+		if [ "${3}" == "*" ] ; then
+			name="MOK"
+		else
+			name="${3}"
+		fi
+	fi
+fi
 
 # Display help info.
 usage () {
 
-	echo "Mokutil-Key, version 0.1.2
+	echo "Mokutil-Key, ${version}
 Usage: mokutil-key [option]
        mokutil-key [option] priv pub ...
 
@@ -30,11 +48,11 @@ Usage: mokutil-key [option]
 
     -c --configure               Configure openssl.cnf file.
     -g --generate-keys           Create key pair for signing (see man page
-                                 for more info.
-    -m --sign-module             Sign single kernel module, useful for nVidia
+                                 for more info).
+    -m --module                  Sign single kernel module, useful for nVidia
                                  kernel drive module.
-    -M --sign-module-all         Signs all modules /lib/modules/(kernel version).
-    -b --binary                  Sign kernel or grub binary file.
+    -a --module-all              Signs all modules /lib/modules/(kernel version).
+    -i --image                   Sign kernel or grub binary file.
     -r --register-key            Register key into shim with mokutil.
 
 
@@ -46,9 +64,6 @@ Copyright (C) 2020 <Michael L. Schaecher> GPL v2
 # Create the configure file.
 create_openssl () {
 
-if ! touch configure ; then
-	echo "Error: unable to create configuration file."
-else
 exec sudo cat <<EOF > ~/.mok/openssl.cnf
 # This definition stops the following lines choking if HOME isn't
 # defined.
@@ -76,14 +91,12 @@ basicConstraints        = critical,CA:FALSE
 extendedKeyUsage        = codeSigning,1.3.6.1.4.1.311.10.3.6,1.3.6.1.4.1.2312.16.1.2
 nsComment               = "OpenSSL Generated Certificate"
 EOF
-fi
-
 }
 
 detect_keys () {
 
-	if [ "${option}" == "-m" ] || [ "${option}" == "-M" ] ||
-	   [ "${option}" == "--sign-module" ] || [ "${option}" == "--sign-module-all" ] ; then
+	if [ "${option}" == "-m" ] || [ "${option}" == "--module" ] ||
+	   [ "${option}" == "-a" ] || [ "${option}" == "--module-all" ] ; then
 
 		if [ "${key}" == "${signingder}.der" ] ; then
 			sleep 0.5 ;
@@ -107,12 +120,10 @@ detect_keys () {
 
 }
 
-export -f detect_keys
-
 # Check if root is required.
 if [ ! "${EUID}" == 0 ] ; then
 
-	if [ "${1}" == "-h" ] || [ "${1}" == "--help" ] ; then
+	if [ "${option}" == "-h" ] || [ "${option}" == "--help" ] ; then
 		usage
 	else
 		echo "mokutil-key requires root access!"
@@ -123,7 +134,8 @@ elif [ ! "${EUID}" == 1 ] ; then
 
 	# Locate the '.mok' directory.
 	if [ ! -d ~/.mok ] ; then
-		exec sudo
+		exec sudo mkdir -p ~/.mok
+	fi
 
 	case ${1} in
 
@@ -150,56 +162,55 @@ elif [ ! "${EUID}" == 1 ] ; then
 
 			detect_keys
 
-			module=$(echo ${4} | awk -F'.ko' '{print $1}')
+			module=$(echo ${path} | awk -F'.ko' '{print $1}')
 
-			if [ "${4}" == "${module}.ko" ] ; then
-				echo "Running: kmodsign sha512 ${2} ${3} ${4}"
+			if [ "${path}" == "${module}.ko" ] ; then
 				sleep 0.5
-				if ! exec sudo kmodsign sha512 ${2} ${3} ${4} 2> /dev/null ; then
+				if ! exec sudo kmodsign sha512 ${priv} ${key} ${path} 2> /dev/null ; then
 					echo "Error: unable to sign ${4}!"
-				else
-					echo "signed: ${4}"
 				fi
+				echo "signed: ${path}"
 			else
-				echo "ERROR! ${4} is not a kernel module" && exit
+				echo "ERROR! ${path} is not a kernel module" && exit 1
 			fi
 
 		;;
 		-M|--sign-module-all)
 
 			detect_keys
-			for modules in $(find ${4}/ -name "*.ko" -printf '%P\n' 2> /dev/null); do
-				if [ ! -f ${4}/${modules} ] ; then
+			for modules in $(find ${path}/ -name "*.ko" -printf '%P\n' 2> /dev/null); do
+				if [ ! -f ${path}/${modules} ] ; then
 					echo "Error: ${modoles}, no such module!"
 					exit 1
 				else
-					if ! exec sudo kmodsign sha512 ${2} ${3} ${4}/${modules} 2> /dev/null ; then
-						echo "Error: unable to sign ${4}!"
-					else
-						echo "signed: ${4}/${modules}"
+					if ! exec sudo kmodsign sha512 ${priv} ${key} ${path}/${modules} 2> /dev/null ; then
+						echo "Error: unable to sign ${path}!"
+						exit 1
 					fi
+					echo "signed: ${path}/${modules}"
 				fi
 			done
 
 		;;
-		-b|--sign-image)
+		-i|--image)
 
 			detect_keys
-			if ! exec sudo sbsign --key ${priv} --cert ${key} ${4} --output ${4}.signed ; then
-				echo "Error: unable to sign ${4}"
+			if ! exec sudo sbsign --key ${priv} --cert ${key} ${path} --output ${path}.signed ; then
+				echo "Error: unable to sign ${path}"
 				exit 1
 			else
-				if ! mv -f ${4}.signed ${4} ; then
-					echo "Error: rename ${4}.signed"
+				if ! mv -f ${path}.signed ${path} ; then
+					echo "Error: rename ${ptah}.signed"
 					exit 1
 				fi
-				echo "Signed: ${4}"
+				echo "Signed: ${ptah}"
 			fi
 
 		;;
 		-g|--generate-keys)
 
-			# Run a check for more the just the option.
+
+
 		;;
 		*)
 			echo "mokutil-key: unreconized option"
