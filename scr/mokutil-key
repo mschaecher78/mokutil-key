@@ -9,33 +9,24 @@ version="version 0.2.1"
 
 # This should be name to make it eazier.
 option="${1}"
-priv="${2}"
-key="${3}"
 
-if [ "${option}" == "-m" ] || [ "${option}" == "--module" ] ||
-[ "${option}" == "-a" ] || [ "${option}" == "--module-all" ] ||
-[ "${option}" == "-i" ] || [ "${option}" == "--image" ] ; then
-	path="${4}"
+# Hendle the key generation option differently.
+if [ "${option}" == "-g" ] || [ "${option}" == "--generate-keys" ] ; then
+	if [ "${2}" == "" ] ; then
+		rsa="2048"
+	else
+		rsa="${2}"
+		if [ "${3}" == "" ] ; then name="MOK" ; else name="${3}" ; fi
+	fi
+else
+	priv="${2}" && key="${3}" && path="${4}"
+
 fi
 
 # For some reason this is required.
 private=$(echo ${2} | awk -F'.priv' '{print $1}')
 signingder=$(echo ${key} | awk -F'.der' '{print $1}')
 signingpem=$(echo ${key} | awk -F'.pem' '{print $1}')
-
-# This is only for use when key generation option is used.
-if [ "${option}" == "-g" ] || [ "${option}" == "--generate-keys" ] ; then
-	if [ "${2}" == "" ] ; then
-		rsa="2048"
-	else
-		rsa="${2}"
-		if [ "${3}" == "*" ] ; then
-			name="MOK"
-		else
-			name="${3}"
-		fi
-	fi
-fi
 
 # Display help info.
 usage () {
@@ -78,9 +69,9 @@ prompt                  = no
 
 [ req_distinguished_name ]
 countryName             = ${country}
-stateOrProvinceName     = ${state}
+stateOrProvinceName     = ${province}
 localityName            = ${city}
-0.organizationName      = ${organizations}
+0.organizationName      = ${organization}
 commonName              = ${common}
 emailAddress            = ${email}
 
@@ -95,32 +86,34 @@ EOF
 
 detect_keys () {
 
-	if [ "${option}" == "-m" ] || [ "${option}" == "--module" ] ||
-	   [ "${option}" == "-a" ] || [ "${option}" == "--module-all" ] ; then
-
-		if [ "${key}" == "${signingder}.der" ] ; then
-			sleep 0.5 ;
-		else
-			exit 1
-		fi
-	elif [ "${option}" == "-b" ] || [ "${option}" == "--sign-image" ] ; then
-
-		if [ "${key}" == "${signingpem}.pem" ] ; then
-			sleep 0.5
-		else
-			exit 1
-		fi
+	# Make sure that the key are in fact keys and require that the
+	# suffix is proper.
+	if [ "${priv}" == "${private}.priv" ] ; then
+		echo "Private Key: ${priv}" && sleep 0.5
+	else
+		echo "Error: with ${priv}" && exit 1
 	fi
 
-	if [ "${priv}" == "${private}.priv" ] ; then
-		sleep 0.5
+	if [ "${option}" == "-i" ] || [ "${option}" == "--image" ] ; then
+
+		if [ "${key}" == "${signingpem}.pem" ] ; then
+			echo "Private Key: ${key}" && sleep 0.5
+		else
+			echo "Error: with ${key}" && exit 1
+		fi
 	else
-		exit 1
+
+		if [ "${key}" == "${signingder}.der" ] ; then
+			echo "Private Key: ${key}" && sleep 0.5
+		else
+			echo "Error: with ${key}" && exit 1
+		fi
 	fi
 
 }
 
-# Check if root is required.
+# Root should not be required for help option, but is need for
+# everything else.
 if [ ! "${EUID}" == 0 ] ; then
 
 	if [ "${option}" == "-h" ] || [ "${option}" == "--help" ] ; then
@@ -140,7 +133,7 @@ elif [ ! "${EUID}" == 1 ] ; then
 	case ${1} in
 
 		-c|--configure)
-
+			# Require base infomation.
 			echo -n "Country Code (i.e. United States = US): " && read country
 			echo -n "State/Province: " && read province
 			echo -n "City: " && read city
@@ -148,14 +141,16 @@ elif [ ! "${EUID}" == 1 ] ; then
 			echo -n "Common Name (default = Signing Key) " && read common
 			echo -n "Email (default = blank): " && read email
 
-			# Use default if left empty or "none."
+			# Use default/'s if left empty or "none."
 			if [ "${organization}" == "" ] ; then organization="" ; fi
 
 			if [ "${common}" == "" ] ; then common="Signing Key" ; fi
 
 			if [ "${email}" == "" ] ; then email="" ; fi
 
-			create_openssl
+			if ! create_openssl ; then
+				echo "Error: unable to create ~/.mok/openssl.cnf"
+			fi
 
 		;;
 		-m|--sign-module)
@@ -209,7 +204,7 @@ elif [ ! "${EUID}" == 1 ] ; then
 		;;
 		-g|--generate-keys)
 
-
+			#if [  ]
 
 		;;
 		*)
