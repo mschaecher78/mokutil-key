@@ -1,0 +1,208 @@
+#!/bin/bash
+
+# mokutil-key home <https://www.github.com/mschaecher78/mokutil-key/>
+# Copyright (C) 2020 <Michael L. Schaecher> GPL v2
+
+set -e
+
+# This should be name to make it eazier.
+option="${1}"
+priv="${2}"
+key="${3}"
+
+# For some reason this is required.
+private=$(echo ${2} | awk -F'.priv' '{print $1}')
+signingder=$(echo ${key} | awk -F'.der' '{print $1}')
+signingpem=$(echo ${key} | awk -F'.pem' '{print $1}')
+
+# This is only for use when key generation option is used.
+if [ "${option}" == "-g" ] || [ "${option}" "--generate-keys" ] ; then
+
+
+# Display help info.
+usage () {
+
+	echo "Mokutil-Key, version 0.1.2
+Usage: mokutil-key [option]
+       mokutil-key [option] priv pub ...
+
+    options
+
+    -c --configure               Configure openssl.cnf file.
+    -g --generate-keys           Create key pair for signing (see man page
+                                 for more info.
+    -m --sign-module             Sign single kernel module, useful for nVidia
+                                 kernel drive module.
+    -M --sign-module-all         Signs all modules /lib/modules/(kernel version).
+    -b --binary                  Sign kernel or grub binary file.
+    -r --register-key            Register key into shim with mokutil.
+
+
+mokutil-key home <https://www.github.com/mschaecher78/mokutil-key/>
+Copyright (C) 2020 <Michael L. Schaecher> GPL v2
+"
+}
+
+# Create the configure file.
+create_openssl () {
+
+if ! touch configure ; then
+	echo "Error: unable to create configuration file."
+else
+exec sudo cat <<EOF > ~/.mok/openssl.cnf
+# This definition stops the following lines choking if HOME isn't
+# defined.
+HOME                    = .
+#RANDFILE                = $ENV::HOME/.rnd
+
+[ req ]
+distinguished_name      = req_distinguished_name
+x509_extensions         = v3
+string_mask             = utf8only
+prompt                  = no
+
+[ req_distinguished_name ]
+countryName             = ${country}
+stateOrProvinceName     = ${state}
+localityName            = ${city}
+0.organizationName      = ${organizations}
+commonName              = ${common}
+emailAddress            = ${email}
+
+[ v3 ]
+subjectKeyIdentifier    = hash
+authorityKeyIdentifier  = keyid:always,issuer
+basicConstraints        = critical,CA:FALSE
+extendedKeyUsage        = codeSigning,1.3.6.1.4.1.311.10.3.6,1.3.6.1.4.1.2312.16.1.2
+nsComment               = "OpenSSL Generated Certificate"
+EOF
+fi
+
+}
+
+detect_keys () {
+
+	if [ "${option}" == "-m" ] || [ "${option}" == "-M" ] ||
+	   [ "${option}" == "--sign-module" ] || [ "${option}" == "--sign-module-all" ] ; then
+
+		if [ "${key}" == "${signingder}.der" ] ; then
+			sleep 0.5 ;
+		else
+			exit 1
+		fi
+	elif [ "${option}" == "-b" ] || [ "${option}" == "--sign-image" ] ; then
+
+		if [ "${key}" == "${signingpem}.pem" ] ; then
+			sleep 0.5
+		else
+			exit 1
+		fi
+	fi
+
+	if [ "${priv}" == "${private}.priv" ] ; then
+		sleep 0.5
+	else
+		exit 1
+	fi
+
+}
+
+export -f detect_keys
+
+# Check if root is required.
+if [ ! "${EUID}" == 0 ] ; then
+
+	if [ "${1}" == "-h" ] || [ "${1}" == "--help" ] ; then
+		usage
+	else
+		echo "mokutil-key requires root access!"
+		exit 1
+	fi
+
+elif [ ! "${EUID}" == 1 ] ; then
+
+	# Locate the '.mok' directory.
+	if [ ! -d ~/.mok ] ; then
+		exec sudo
+
+	case ${1} in
+
+		-c|--configure)
+
+			echo -n "Country Code (i.e. United States = US): " && read country
+			echo -n "State/Province: " && read province
+			echo -n "City: " && read city
+			echo -n "Organization Name (default = blank): " && read organization
+			echo -n "Common Name (default = Signing Key) " && read common
+			echo -n "Email (default = blank): " && read email
+
+			# Use default if left empty or "none."
+			if [ "${organization}" == "" ] ; then organization="" ; fi
+
+			if [ "${common}" == "" ] ; then common="Signing Key" ; fi
+
+			if [ "${email}" == "" ] ; then email="" ; fi
+
+			create_openssl
+
+		;;
+		-m|--sign-module)
+
+			detect_keys
+
+			module=$(echo ${4} | awk -F'.ko' '{print $1}')
+
+			if [ "${4}" == "${module}.ko" ] ; then
+				echo "Running: kmodsign sha512 ${2} ${3} ${4}"
+				sleep 0.5
+				if ! exec sudo kmodsign sha512 ${2} ${3} ${4} 2> /dev/null ; then
+					echo "Error: unable to sign ${4}!"
+				else
+					echo "signed: ${4}"
+				fi
+			else
+				echo "ERROR! ${4} is not a kernel module" && exit
+			fi
+
+		;;
+		-M|--sign-module-all)
+
+			detect_keys
+			for modules in $(find ${4}/ -name "*.ko" -printf '%P\n' 2> /dev/null); do
+				if [ ! -f ${4}/${modules} ] ; then
+					echo "Error: ${modoles}, no such module!"
+					exit 1
+				else
+					if ! exec sudo kmodsign sha512 ${2} ${3} ${4}/${modules} 2> /dev/null ; then
+						echo "Error: unable to sign ${4}!"
+					else
+						echo "signed: ${4}/${modules}"
+					fi
+				fi
+			done
+
+		;;
+		-b|--sign-image)
+
+			detect_keys
+			if ! exec sudo sbsign --key ${priv} --cert ${key} ${4} --output ${4}.signed ; then
+				echo "Error: unable to sign ${4}"
+				exit 1
+			else
+				if ! mv -f ${4}.signed ${4} ; then
+					echo "Error: rename ${4}.signed"
+					exit 1
+				fi
+				echo "Signed: ${4}"
+			fi
+
+		;;
+		-g|--generate-keys)
+
+			# Run a check for more the just the option.
+		;;
+		*)
+			echo "mokutil-key: unreconized option"
+		;;
+	esac
+fi
