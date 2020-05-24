@@ -7,26 +7,22 @@ set -e
 
 version="version 0.2.1"
 
-# This should be name to make it eazier.
+mok_dir="/home/$(users)/.mok"
 option="${1}"
 
 # Hendle the key generation option differently.
 if [ "${option}" == "-g" ] || [ "${option}" == "--generate-keys" ] ; then
-	if [ "${2}" == "" ] ; then
-		rsa="2048"
-	else
-		rsa="${2}"
-		if [ "${3}" == "" ] ; then name="MOK" ; else name="${3}" ; fi
-	fi
+	if [ ! "${2}" ] ; then config="${mok_dir}/openssl.cnf" ; else config="${2}" ; fi
+	if [ ! "${3}" ] ; then rsa="2048" ; else rsa="${3}" ; fi
+	if [ ! "${4}" ] ; then name="${mok_dir}/MOK" ; else name="${mok_dir}/${4}" ; fi
 else
 	priv="${2}" && key="${3}" && path="${4}"
+	# For some reason this is required.
+	private=$(echo ${2} | awk -F'.priv' '{print $1}')
+	signingder=$(echo ${key} | awk -F'.der' '{print $1}')
+	signingpem=$(echo ${key} | awk -F'.pem' '{print $1}')
 
 fi
-
-# For some reason this is required.
-private=$(echo ${2} | awk -F'.priv' '{print $1}')
-signingder=$(echo ${key} | awk -F'.der' '{print $1}')
-signingpem=$(echo ${key} | awk -F'.pem' '{print $1}')
 
 # Display help info.
 usage () {
@@ -95,14 +91,12 @@ detect_keys () {
 	fi
 
 	if [ "${option}" == "-i" ] || [ "${option}" == "--image" ] ; then
-
 		if [ "${key}" == "${signingpem}.pem" ] ; then
 			echo "Private Key: ${key}" && sleep 0.5
 		else
 			echo "Error: with ${key}" && exit 1
 		fi
 	else
-
 		if [ "${key}" == "${signingder}.der" ] ; then
 			echo "Private Key: ${key}" && sleep 0.5
 		else
@@ -115,23 +109,19 @@ detect_keys () {
 # Root should not be required for help option, but is need for
 # everything else.
 if [ ! "${EUID}" == 0 ] ; then
-
 	if [ "${option}" == "-h" ] || [ "${option}" == "--help" ] ; then
 		usage
 	else
 		echo "mokutil-key requires root access!"
 		exit 1
 	fi
-
 elif [ ! "${EUID}" == 1 ] ; then
-
 	# Locate the '.mok' directory.
 	if [ ! -d ~/.mok ] ; then
 		exec sudo mkdir -p ~/.mok
 	fi
 
 	case ${1} in
-
 		-c|--configure)
 			# Require base infomation.
 			echo -n "Country Code (i.e. United States = US): " && read country
@@ -143,21 +133,14 @@ elif [ ! "${EUID}" == 1 ] ; then
 
 			# Use default/'s if left empty or "none."
 			if [ "${organization}" == "" ] ; then organization="" ; fi
-
 			if [ "${common}" == "" ] ; then common="Signing Key" ; fi
-
 			if [ "${email}" == "" ] ; then email="" ; fi
-
 			if ! create_openssl ; then
 				echo "Error: unable to create ~/.mok/openssl.cnf"
 			fi
-
 		;;
 		-m|--sign-module)
-
-			detect_keys
-
-			module=$(echo ${path} | awk -F'.ko' '{print $1}')
+			detect_keys && module=$(echo ${path} | awk -F'.ko' '{print $1}')
 
 			if [ "${path}" == "${module}.ko" ] ; then
 				sleep 0.5
@@ -168,10 +151,8 @@ elif [ ! "${EUID}" == 1 ] ; then
 			else
 				echo "ERROR! ${path} is not a kernel module" && exit 1
 			fi
-
 		;;
 		-M|--sign-module-all)
-
 			detect_keys
 			for modules in $(find ${path}/ -name "*.ko" -printf '%P\n' 2> /dev/null); do
 				if [ ! -f ${path}/${modules} ] ; then
@@ -185,10 +166,8 @@ elif [ ! "${EUID}" == 1 ] ; then
 					echo "signed: ${path}/${modules}"
 				fi
 			done
-
 		;;
 		-i|--image)
-
 			detect_keys
 			if ! exec sudo sbsign --key ${priv} --cert ${key} ${path} --output ${path}.signed ; then
 				echo "Error: unable to sign ${path}"
@@ -200,11 +179,28 @@ elif [ ! "${EUID}" == 1 ] ; then
 				fi
 				echo "Signed: ${ptah}"
 			fi
-
 		;;
 		-g|--generate-keys)
 
-			#if [  ]
+			create_priv_der=`exec sudo openssl req -config ${config} \
+			-new -x509 -newkey rsa:${rsa} -nodes -days 36500 -outform DER \
+			-keyout "${name}.priv" -out "${name}.der"`
+
+			create_pem=`exec sudo openssl x509 -in ${name}.der \
+			-inform DER -outform PEM -out ${name}.pem`
+
+			echo "${create_priv_der}"
+
+			if ! ${create_priv_der} 2> /dev/null ; then
+				echo "Error: unable to create ${name}.priv & ${name}.der keys!"
+				exit 1
+			else
+				if ! ${create_pem} 2> /dev/null ; then
+					echo "Error: unable to create ${name}.pem key!"
+					exit 1
+				fi
+				ls ~/.mok/
+			fi
 
 		;;
 		*)
