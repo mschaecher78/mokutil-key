@@ -1,0 +1,66 @@
+'\" t
+.\"     Title: mokutil-key
+.\"    Author: Michael L. Schaecher
+.\"  Homepage: <https://github.com/mschaecher78/mokutil-key/>
+.\"      Date: 23\ \&May\ \&2020
+.\"    Manual: mokutil-key
+.\"    Source: mokutil-key 0.2.4
+.\"  Language: English
+.\"
+.TH "mokutil-key" "8" "23\ \&May\ \&2020" "mokutil-key 0.2.4"
+.\"
+.SH "NAME"
+.PP
+mokutil-key \- Create private and public key pair for signing.
+.SH SYNOPSIS
+.PP
+mokutil-key [ option ] [ path/to/file ] .. or .. [ rsa size/key name ]
+.SH DESCRIPTION
+.PP
+.B mokutil-key
+Is design to make it easier to create a signing key pair that that can be used with
+\fBSecure Boot\fR and\fB MOK Management\fR (\fBMachine Owner Key Management\fR). The
+option/'s for signing can be used to sign multiple modules, a single module or efi
+binary image. The end-user machine owner has the option to config an "openssl.cnf"
+file, or use one of their own.
+.PP
+\fBNOTE:\fR Keys that are used with this program require the proper suffix. Such as \.priv
+for private key and .pem/.der for the signing certificates.
+.SH OPTIONS
+.TP
+.BR -c\ --configure
+Configure and create an openssl.cnf file that is used to generate the needed keys for
+signing.
+.TP
+.BR -g\ --generate-keys
+Create priv, der and pem keys used for signing. The der key is used for registing the
+key into MOK and signing kernel module/'s and the pem key is used for signing efi binary
+images such as the \fBGRUB.efi\fR or kenrel \fBvmlinux-*\fR. By default this option will
+use the configuration file located in the "\fB.mok\fR" directory of the user.
+.TP
+.BR -m\ --module
+Sign single kernel module, useful for nVidia kernel drive module or any module built outside
+of the normal kernel build process.
+.TP
+.BR -a\ --module-all
+This option will look for and find all kernel modules located and the given directory and sign
+them with desired key.
+.TP
+.BR -i\ --image
+Similar to the \fB-m\fR or \fB--module\fR option, but used to sign efi image such as \fBGRUB.efi\fR or sign
+the \fBvmlinux-*\fR kernel image.
+.TP
+.BR -r\ --register-key
+Register a key into \fBMOK Management\fR or the newly generated one. A reboot of the system is required to finish
+the process.
+.SH EXAMPLES & USEAGE
+.TP
+The default for "\fB\-g --generate-keys\fR" option will generate the required keys.
+
+mokutil --generate-keys
+.TP
+To adjust the size of the key enter the size i.e. 2048 (default).
+
+mokutil --generate-keys 4096
+.TP
+Change the name
