@@ -7,7 +7,7 @@ set -e
 
 DIR="/home/$(users)/.mok"	# Default directory is required.
 
-VERSION=" version 0.9.1.6"	# Version
+VERSION=" version 0.9.1.11"	# Version
 
 # Display this helpful options.
 USAGE="mokutil-key ${VERSION} (mokutil)
@@ -26,12 +26,12 @@ Options:
           --version                      Display mokutil-key version number.
 
 Key Options:
-          --key-private=PATH/KEY         Set the pirvate key to use to for sign file/image.
-          --key-public=PATH/KEY          Set corresponding public key. If these options are omitted then then the default
+          --key-private=DIR_PATH/KEY         Set the pirvate key to use to for sign file/image.
+          --key-public=DIR_PATH/KEY          Set corresponding public key. If these options are omitted then then the default
                                          keys generated with mokutil-key will be used.
 
 Directory/Path Options:
-          --path=PATH/VERSION            This option is used for the path the the lib/module/\"kernel version\" path.
+          --path=DIR_PATH/VERSION            This option is used for the path the the lib/module/\"kernel version\" path.
 
 Optional:
     -n,   --use-file-name=NAME           file name for the keys (default file name is MOK).
@@ -121,22 +121,53 @@ function create_keys () {
 
 }
 
-function single_module () {
+function sign_module () {
+
+	echo "${command}"
 
 	# Which command option for module signing was used
 	if [ "${command}" == "modone" ] ; then
 
-		if ! kmodsign sha512 ${PRIVATE} ${PUBLIC} ${PATH} 2> /dev/null ; then
-			echo "Error: signing ${PATH} failed!"
+		if [ ! -d ${DIR_PATH} ] ; then
+			echo "Error: directory ${DIR_PATH} does not exist."
 			exit 1
 		else
-			echo "Signed: ${PATH}"
+
+			# Sign that sigle module.
+			if ! kmodsign sha512 ${PRIVATE} ${PUBLIC} ${DIR_PATH} 2> /dev/null ; then
+				echo "Error: signing ${DIR_PATH} failed!"
+				exit 1
+			else
+				echo "Signed: ${DIR_PATH}"
+			fi
+
+		fi
+
+	elif [ "${command}" == "modall" ] ; then
+
+		if [ ! -d ${DIR_PATH} ] ; then
+			echo "Error: directory ${DIR_PATH} does not exist."
+			exit 1
+		else
+
+			for modules in $(find ${DIR_PATH}/ -name *.ko -printf '%P\n') ; do
+
+				# Sign every module.
+				if ! kmodsign sha512 ${PRIVATE} ${PUBLIC} ${DIR_PATH} 2> /dev/null ; then
+					echo "Error: signing ${DIR_PATH} failed!"
+					exit 1
+				else
+					echo "Signed: ${DIR_PATH}"
+				fi
+
+			done
+
 		fi
 
 	fi
 
-
 }
+
 # getopt
 GETOPT=$(getopt -n mokutil-key -o 'a,m,i,c,g,r,n:,s:x:' \
 	-l 'modules-all,module,image,configure,generate-keys' \
@@ -171,7 +202,7 @@ elif [ ! "${EUID}" == "1" ] ; then
 		case "${1}" in
 
 			# Options
-			-a|--module-all) command="modall" ;;
+			-a|--modules-all) command="modall" ;;
 			-m|--module) command="modone" ;;
 			-i|--image) command="binary" ;;
 			-c|--configure) config_openssl ;;
@@ -206,13 +237,7 @@ elif [ ! "${EUID}" == "1" ] ; then
 				shift
 			;;
 			--path)
-				export PATH=$(echo ${2} | awk -F'=' '{print $1}')
-
-				# Test for existents of binary or directory.
-				if [ ! -d ${PATH} ] || [ ! -f ${PATH} ] ; then
-					echo "Error: ${PATH} does not exist."
-				fi
-
+				export DIR_PATH=$(echo ${2} | awk -F'=' '{print $1}')
 				shift
 			;;
 			# These options are optional.
@@ -270,7 +295,7 @@ fi
 if [ ! "${NAME}" ] ; then
 	export NAME="${DIR}/MOK"
 else
-	NAME="${DIR}/${NAME}"
+	export NAME="${DIR}/${NAME}"
 fi
 
 if [ ! "${SIZE}" ] ; then
@@ -286,21 +311,14 @@ if [ ! "${EXPIRE}" ] ; then
 fi
 
 if [ ! "${PRIVATE}" ] ; then
-	export PRIVATE=/home/$(users)/.mok/MOK.priv
+	export PRIVATE="/home/$(users)/.mok/MOK.priv"
 fi
 
 # If no public key entered make sure that the right default is used
 # for the right object being signed.
-if [ ! "${PUBLIC}" ] && [ "${command}" == "binary" ] ; then
-	export PUBLIC=/home/$(users)/.mok/MOK.pem
-else
-
-	if [ "${command}" == "modall" ] || [ "${command}" == "modone" ] ; then
-
-		if [ ! "${PUBLIC}" ] ; then
-			export PUBLIC=/home/$(users)/.mok/MOK.der
-		fi
-	fi
+if [ ! "${PUBLIC}" ] ; then
+	export PUBLIC_PEM="${DIR}/MOK.pem"
+	export PUBLIC_DER="${DIR}/MOK.der"
 fi
 
 # Which command options was give.
@@ -308,12 +326,8 @@ if [ "${command}" == "genkey" ] ; then
 	create_keys
 elif [ "${command}" == "modone" ] || [ "${command}" == "modall" ] ; then
 
-	# Only the DER public key type can be used for signing modules.
-	DER=$(echo "${PUBLIC}" | awk -F'.' '{print $3}')
-
-	if  [ "${DER}" == "pem" ] ; then
-		echo "Error: ${PUBLIC} is not valid public signing key for module/'s signing!"
-		exit 1
+	if [ ! "${PUBLIC}" ] ; then
+		export PUBLIC=${PUBLIC_DER}
 	fi
 
 	sign_module
