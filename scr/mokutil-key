@@ -7,7 +7,7 @@ set -e
 
 DIR="/home/$(users)/.mok"	# Default directory is required.
 
-VERSION=" version 0.9.1.11"	# Version
+VERSION="version 0.9.1.18"	# Version
 
 # Display this helpful options.
 USAGE="mokutil-key ${VERSION} (mokutil)
@@ -168,11 +168,22 @@ function sign_module () {
 
 }
 
+function sign_image () {
+
+	if ! sbsign --key ${PRIVATE} --cert ${PUBLIC} ${DIR_PATH} --output ${DIR_PATH}.signed 2> /dev/null ; then
+		echo "Error: failed signing ${DIR_PATH}"
+		exit 1
+	else
+		mv -f ${DIR_PATH}.signed ${DIR_PATH}
+		echo "Signed: ${DIR_PATH}"
+	fi
+
+}
+
+
 # getopt
-GETOPT=$(getopt -n mokutil-key -o 'a,m,i,c,g,r,n:,s:x:' \
-	-l 'modules-all,module,image,configure,generate-keys' \
-	-l 'register-key,help,version,key-private:,key-public:' \
-	-l 'path:,file-name:,rsa-size:,openssl-config:expire:' \
+GETOPT=$(getopt -n mokutil-key -o 'a,m,i,c,g,r,n:,s:x:' -l 'modules-all,module,image,configure,generate-keys' \
+	-l 'register-key,help,version,key-private:,key-public:,path:,file-name:,rsa-size:,openssl-config:expire:' \
 	-- $@)
 
 eval set -- "${GETOPT}"
@@ -331,5 +342,13 @@ elif [ "${command}" == "modone" ] || [ "${command}" == "modall" ] ; then
 	fi
 
 	sign_module
+
+elif [ "${command}" == "binary" ] ; then
+
+	if [ ! "${PUBLIC}" ] ; then
+		export PUBLIC=${PUBLIC_PEM}
+	fi
+
+	sign_image
 
 fi
