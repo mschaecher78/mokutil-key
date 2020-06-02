@@ -7,7 +7,7 @@ set -e
 
 DIR="/home/$(users)/.mok"	# Default directory is required.
 
-VERSION=" version 1.0.1"	# Version
+VERSION=" version 0.9.1.6"	# Version
 
 # Display this helpful options.
 USAGE="mokutil-key ${VERSION} (mokutil)
@@ -32,8 +32,6 @@ Key Options:
 
 Directory/Path Options:
           --path=PATH/VERSION            This option is used for the path the the lib/module/\"kernel version\" path.
-          --object-ko=PATH/*             Used for single kernel module.
-          --binary-image=PATH/*          Used for binary image such as vmlinux-(version) or /boot/efi/image.
 
 Optional:
     -n,   --use-file-name=NAME           file name for the keys (default file name is MOK).
@@ -43,13 +41,6 @@ Optional:
 
 mokutil-key home <https://www.github.com/mschaecher78/mokutil-key/>
 Copyright (C) 2020 <Michael L. Schaecher> GPL v2"
-
-function all_modules () {
-
-	echo "${PRIV}"
-	echo "${PUBL}"
-
-}
 
 function config_openssl () {
 
@@ -105,28 +96,52 @@ EOF
 
 function create_keys () {
 
-	echo "${NAME}"
-	echo "${SIZE}"
-
-}
-
-function test_public_key () {
-
-	openssl pkey -inform PEM -pubin -in ${PUBLIC} -noout &> /dev/null
-
-	if [ $? != 0 ] ; then
-		echo "${PUBLIC}"
-		echo "this was definitely not a RSA public key in PEM format"
+	# Use condistion for command.
+	if ! openssl req -config ${CONFIG} -new \
+	-x509 -newkey rsa:2048 -nodes -days ${EXPIRE} \
+	-outform DER -keyout "${NAME}.priv" -out \
+	"${NAME}.der" 2> /dev/null ; then
+		echo "Error: unable to creating ${NAME}.priv key"
+		echo "Error; unable to creating ${NAME}.der key"
 		exit 1
+	else
+		echo "Created:  ${NAME}.priv"
+		echo "Created:  ${NAME}.der"
+
+		if ! openssl x509 -in ${NAME}.der -inform DER \
+		-outform PEM -out ${NAME}.pem 2> /dev/null ; then
+			echo "Error; unable to creating ${NAME}.pem key"
+			exit 1
+		else
+			echo "Created:  ${NAME}.pem"
+
+		fi
+
 	fi
 
 }
 
+function single_module () {
+
+	# Which command option for module signing was used
+	if [ "${command}" == "modone" ] ; then
+
+		if ! kmodsign sha512 ${PRIVATE} ${PUBLIC} ${PATH} 2> /dev/null ; then
+			echo "Error: signing ${PATH} failed!"
+			exit 1
+		else
+			echo "Signed: ${PATH}"
+		fi
+
+	fi
+
+
+}
 # getopt
-GETOPT=$(getopt -n mokutil-key -o 'a,m,i,c,g,r,n:,s:' \
+GETOPT=$(getopt -n mokutil-key -o 'a,m,i,c,g,r,n:,s:x:' \
 	-l 'modules-all,module,image,configure,generate-keys' \
 	-l 'register-key,help,version,key-private:,key-public:' \
-	-l 'path:,--use-file-name:,set-rsa-size:,openssl-config:' \
+	-l 'path:,file-name:,rsa-size:,openssl-config:expire:' \
 	-- $@)
 
 eval set -- "${GETOPT}"
@@ -146,6 +161,11 @@ if [ ! "${EUID}" == "0" ] ; then
 
 elif [ ! "${EUID}" == "1" ] ; then
 
+	# If the directory doesn't exist, then create it.
+	if [ ! -d ${DIR} ] ; then
+		mkdir -p ${DIR}
+	fi
+
 	while true  ; do
 
 		case "${1}" in
@@ -159,16 +179,85 @@ elif [ ! "${EUID}" == "1" ] ; then
 			-r|--register-key) command="regkey" ;;
 			--help)	;;
 			--version) ;;
-
 			# Key Options
-			--key-private) export PRIVATE=${2} ; shift ;;
-			--key-public) export PUBLIC=${2} ; shift ;;
-			--path) export PATH=${2} ; shift ;;
+			--key-private)
+				export PRIVATE=$(echo ${2} | awk -F'=' '{print $1}')
 
+				# Assume that the file is the private key. If it is
+				# not then sign fo file well fail.
+
+				# Only test for file existants.
+				if [ ! -f ${PRIVATE} ] ; then
+					echo "Error: ${PRIVATE} does not seem to exist!"
+					exit 1
+				fi
+
+				shift
+			;;
+			--key-public)
+				export PUBLIC=$(echo ${2} | awk -F'=' '{print $1}')
+
+				# Only test for file existants.
+				if [ ! -f ${PUBLIC} ] ; then
+					echo "Error: ${PUBLIC} does not seem to exist!"
+					exit 1
+				fi
+
+				shift
+			;;
+			--path)
+				export PATH=$(echo ${2} | awk -F'=' '{print $1}')
+
+				# Test for existents of binary or directory.
+				if [ ! -d ${PATH} ] || [ ! -f ${PATH} ] ; then
+					echo "Error: ${PATH} does not exist."
+				fi
+
+				shift
+			;;
 			# These options are optional.
-			-n|--use-file-name) ;;
-			-s|--set-rsa-size) ;;
-			--openssl-config) ;;
+			-n|--file-name)
+				export NAME=$(echo ${2} | awk -F'=' '{print $1}')
+				shift
+			;;
+			-s|--rsa-size)
+				export SIZE=$(echo ${2} | awk -F'=' '{print $1}')
+
+				if [[ ${SIZE} =~ [a-zA-Z] ]] ; then
+					echo "Error: '${SIZE}' not a valid integer"
+					exit 1
+				elif [[ ${SIZE} =~ [1-9] ]] ; then
+
+					if [ "${SIZE}" -lt "2048" ] || [ "${SIZE}" -gt "16384" ]; then
+						echo "Error: '${SIZE}' invalid RSA size (2048 - 16384)!"
+						exit 1
+					fi
+
+				fi
+
+				shift
+			;;
+			-x|--expire)
+				export EXPIRE=$(echo ${2} | awk -F'=' '{print $1}')
+
+				if [[ ${EXPIRE} =~ [a-zA-Z] ]] ; then
+					echo "Error: '${EXPIRE}' not a valid integer"
+					exit 1
+				elif [[ ${EXPIRE} =~ [1-9] ]] ; then
+
+					if [ "${EXPIRE}" -lt "365" ] ; then
+						echo "Warning: '${EXPIRE}' less a year is not recommended!"
+						sleep 2
+					fi
+
+				fi
+
+				shift
+			;;
+			--openssl-config)
+				export CONFIG=$(echo ${2} | awk -F'=' '{print $2}')
+				shift
+			;;
 			--) shift ; break ;;
 		esac
 		shift
@@ -176,42 +265,57 @@ elif [ ! "${EUID}" == "1" ] ; then
 	done
 fi
 
-# Do this.
-if [ "${command}" == "modall" ] || [ "${command}" == "modone" ] ; then
+# Set the variables even if the command is not being use, this well
+# help to make the script consistent.
+if [ ! "${NAME}" ] ; then
+	export NAME="${DIR}/MOK"
+else
+	NAME="${DIR}/${NAME}"
+fi
 
-	# Grab the private key if none was given or the file
-	# is not valid and do the same for the public key.
-	if [ ! "${PRIVATE}" ] || [ ! -f ${PRIVATE} ] ; then
+if [ ! "${SIZE}" ] ; then
+	export SIZE="2048"
+fi
 
-		export PRIVATE="${DIR}/`ls ${DIR} | grep .priv`"
+if [ ! "${CONFIG}" ] ; then
+	export CONFIG="${DIR}/openssl.cnf"
+fi
 
-		# Test for existing default key
-		if [ ! -f ${PRIVATE} ] ; then
-			PRIVATE_KEY_ERROR="Error: unable to load ${PRIVATE}"
+if [ ! "${EXPIRE}" ] ; then
+	export EXPIRE="36500"
+fi
+
+if [ ! "${PRIVATE}" ] ; then
+	export PRIVATE=/home/$(users)/.mok/MOK.priv
+fi
+
+# If no public key entered make sure that the right default is used
+# for the right object being signed.
+if [ ! "${PUBLIC}" ] && [ "${command}" == "binary" ] ; then
+	export PUBLIC=/home/$(users)/.mok/MOK.pem
+else
+
+	if [ "${command}" == "modall" ] || [ "${command}" == "modone" ] ; then
+
+		if [ ! "${PUBLIC}" ] ; then
+			export PUBLIC=/home/$(users)/.mok/MOK.der
 		fi
+	fi
+fi
 
+# Which command options was give.
+if [ "${command}" == "genkey" ] ; then
+	create_keys
+elif [ "${command}" == "modone" ] || [ "${command}" == "modall" ] ; then
+
+	# Only the DER public key type can be used for signing modules.
+	DER=$(echo "${PUBLIC}" | awk -F'.' '{print $3}')
+
+	if  [ "${DER}" == "pem" ] ; then
+		echo "Error: ${PUBLIC} is not valid public signing key for module/'s signing!"
+		exit 1
 	fi
 
-	if [ ! "${PUBLIC}" ] || [ ! -f ${PUBLIC} ] ; then
-
-		export PUBLIC="${DIR}/`ls ${DIR} | grep .der`"
-
-		# Test for existing default key
-		if [ ! -f ${PUBLIC} ] ; then
-			PUBLIC_KEY_ERROR="Error: unable to load ${PRIVATE}"
-		fi
-
-		# Test the key
-		test_public_key
-
-	fi
-
-	if ! diff `ssh-keygen -y -f ${PUBLIC}` -s ${PUBLIC} ; then
-		echo "Private/Piblic key pair does not match"
-	fi
-
-	if [ ! -f ${PATH} ] ; then
-		PATH_ERROR="Error: ${PATH} not a kernel module or binary efi image."
-	fi
+	sign_module
 
 fi
