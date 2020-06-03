@@ -42,145 +42,6 @@ Optional:
 mokutil-key home <https://www.github.com/mschaecher78/mokutil-key/>
 Copyright (C) 2020 <Michael L. Schaecher> GPL v2"
 
-function config_openssl () {
-
-	read -p "Country Code (i.e. United States = US): " COUNTRY
-	read -p "State/Province Name: " PROVINCE
-	read -p "locality/City Name: " LOCALITY
-	read -p "Organization Name (default = ): " ORGANIZATION
-	read -p "Common Name (default Signing Key): " COMMON
-	read -p "Email (default = $(users)@$(hostname)): " EMAIL
-
-	if [ ! "${ORGANIZATION}" ] || [ "${ORGANIZATION}" == "none" ] ; then
-		ORGANIZATION="none"
-	fi
-
-	if [ ! "${COMMON}" ] || [ "${COMMON}" == " Signing Key" ] ; then
-		COMMON="Signing Key"
-	fi
-
-	if [ ! "${EMAIL}" ] || [ "${EMAIL}" == "none" ] ; then
-		EMAIL="$(hostname)@$(users)"
-	fi
-
-# Default openssl.cnf for mokutil-key.
-cat <<EOF > ${DIR}/openssl.cnf
-# This definition stops the following lines choking if HOME isn't
-# defined.
-HOME                    = .
-RANDFILE                = \$ENV::HOME/.rnd
-
-[ req ]
-distinguished_name      = req_distinguished_name
-x509_extensions         = v3
-string_mask             = utf8only
-prompt                  = no
-
-[ req_distinguished_name ]
-countryName             = ${COUNTRY}
-stateOrProvinceName     = ${PROVINCE}
-localityName            = ${LOCALITY}
-0.organizationName      = ${ORGANIZATION}
-commonName              = ${COMMON}
-emailAddress            = ${EMAIL}
-
-[ v3 ]
-subjectKeyIdentifier    = hash
-authorityKeyIdentifier  = keyid:always,issuer
-basicConstraints        = critical,CA:FALSE
-extendedKeyUsage        = codeSigning,1.3.6.1.4.1.311.10.3.6,1.3.6.1.4.1.2312.16.1.2
-nsComment               = "OpenSSL Generated Certificate"
-EOF
-
-}
-
-function create_keys () {
-
-	# Use condistion for command.
-	if ! openssl req -config ${CONFIG} -new \
-	-x509 -newkey rsa:2048 -nodes -days ${EXPIRE} \
-	-outform DER -keyout "${NAME}.priv" -out \
-	"${NAME}.der" 2> /dev/null ; then
-		echo "Error: unable to creating ${NAME}.priv key"
-		echo "Error; unable to creating ${NAME}.der key"
-		exit 1
-	else
-		echo "Created:  ${NAME}.priv"
-		echo "Created:  ${NAME}.der"
-
-		if ! openssl x509 -in ${NAME}.der -inform DER \
-		-outform PEM -out ${NAME}.pem 2> /dev/null ; then
-			echo "Error; unable to creating ${NAME}.pem key"
-			exit 1
-		else
-			echo "Created:  ${NAME}.pem"
-
-		fi
-
-	fi
-
-}
-
-function sign_module () {
-
-	echo "${command}"
-
-	# Which command option for module signing was used
-	if [ "${command}" == "modone" ] ; then
-
-		if [ ! -d ${DIR_PATH} ] ; then
-			echo "Error: directory ${DIR_PATH} does not exist."
-			exit 1
-		else
-
-			# Sign that sigle module.
-			if ! kmodsign sha512 ${PRIVATE} ${PUBLIC} ${DIR_PATH} 2> /dev/null ; then
-				echo "Error: signing ${DIR_PATH} failed!"
-				exit 1
-			else
-				echo "Signed: ${DIR_PATH}"
-			fi
-
-		fi
-
-	elif [ "${command}" == "modall" ] ; then
-
-		if [ ! -d ${DIR_PATH} ] ; then
-			echo "Error: directory ${DIR_PATH} does not exist."
-			exit 1
-		else
-
-			for modules in $(find ${DIR_PATH}/ -name *.ko -printf '%P\n') ; do
-
-				# Sign every module.
-				if ! kmodsign sha512 ${PRIVATE} ${PUBLIC} ${DIR_PATH} 2> /dev/null ; then
-					echo "Error: signing ${DIR_PATH} failed!"
-					exit 1
-				else
-					echo "Signed: ${DIR_PATH}"
-				fi
-
-			done
-
-		fi
-
-	fi
-
-}
-
-function sign_image () {
-
-	if ! sbsign --key ${PRIVATE} --cert ${PUBLIC} ${DIR_PATH} --output ${DIR_PATH}.signed 2> /dev/null ; then
-		echo "Error: failed signing ${DIR_PATH}"
-		exit 1
-	else
-		mv -f ${DIR_PATH}.signed ${DIR_PATH}
-		echo "Signed: ${DIR_PATH}"
-	fi
-
-}
-
-
 # getopt
 GETOPT=$(getopt -n mokutil-key -o 'a,m,i,c,g,r,n:,s:x:' -l 'modules-all,module,image,configure,generate-keys' \
 	-l 'register-key,help,version,key-private:,key-public:,path:,file-name:,rsa-size:,openssl-config:expire:' \
@@ -216,7 +77,7 @@ elif [ ! "${EUID}" == "1" ] ; then
 			-a|--modules-all) command="modall" ;;
 			-m|--module) command="modone" ;;
 			-i|--image) command="binary" ;;
-			-c|--configure) config_openssl ;;
+			-c|--configure) command="config" ;;
 			-g|--generate-keys) command="genkey" ;;
 			-r|--register-key) command="regkey" ;;
 			--help)	;;
@@ -334,14 +195,76 @@ fi
 
 # Which command options was give.
 if [ "${command}" == "genkey" ] ; then
-	create_keys
+
+	# Use condistion for command.
+	if ! openssl req -config ${CONFIG} -new \
+	-x509 -newkey rsa:2048 -nodes -days ${EXPIRE} \
+	-outform DER -keyout "${NAME}.priv" -out \
+	"${NAME}.der" 2> /dev/null ; then
+		echo "Error: unable to creating ${NAME}.priv key"
+		echo "Error; unable to creating ${NAME}.der key"
+		exit 1
+	else
+		echo "Created:  ${NAME}.priv"
+		echo "Created:  ${NAME}.der"
+
+		if ! openssl x509 -in ${NAME}.der -inform DER \
+		-outform PEM -out ${NAME}.pem 2> /dev/null ; then
+			echo "Error; unable to creating ${NAME}.pem key"
+			exit 1
+		else
+			echo "Created:  ${NAME}.pem"
+
+		fi
+
+	fi
+
 elif [ "${command}" == "modone" ] || [ "${command}" == "modall" ] ; then
 
 	if [ ! "${PUBLIC}" ] ; then
 		export PUBLIC=${PUBLIC_DER}
 	fi
 
-	sign_module
+	# Which command option for module signing was used
+	if [ "${command}" == "modone" ] ; then
+
+		if [ ! -d ${DIR_PATH} ] ; then
+			echo "Error: directory ${DIR_PATH} does not exist."
+			exit 1
+		else
+
+			# Sign that sigle module.
+			if ! kmodsign sha512 ${PRIVATE} ${PUBLIC} ${DIR_PATH} 2> /dev/null ; then
+				echo "Error: signing ${DIR_PATH} failed!"
+				exit 1
+			else
+				echo "Signed: ${DIR_PATH}"
+			fi
+
+		fi
+
+	elif [ "${command}" == "modall" ] ; then
+
+		if [ ! -d ${DIR_PATH} ] ; then
+			echo "Error: directory ${DIR_PATH} does not exist."
+			exit 1
+		else
+
+			for modules in $(find ${DIR_PATH}/ -name *.ko -printf '%P\n') ; do
+
+				# Sign every module.
+				if ! kmodsign sha512 ${PRIVATE} ${PUBLIC} ${DIR_PATH} 2> /dev/null ; then
+					echo "Error: signing ${DIR_PATH} failed!"
+					exit 1
+				else
+					echo "Signed: ${DIR_PATH}"
+				fi
+
+			done
+
+		fi
+
+	fi
 
 elif [ "${command}" == "binary" ] ; then
 
@@ -349,6 +272,72 @@ elif [ "${command}" == "binary" ] ; then
 		export PUBLIC=${PUBLIC_PEM}
 	fi
 
-	sign_image
+	if ! sbsign --key ${PRIVATE} --cert ${PUBLIC} ${DIR_PATH} --output ${DIR_PATH}.signed 2> /dev/null ; then
+		echo "Error: failed signing ${DIR_PATH}"
+		exit 1
+	else
+		mv -f ${DIR_PATH}.signed ${DIR_PATH}
+		echo "Signed: ${DIR_PATH}"
+	fi
+
+elif [ "${command}" == "regkey" ] ; then
+
+	if [ ! "${PUBLIC}" ] ; then
+		export PUBLIC=${PUBLIC_DER}
+	fi
+
+	if ! mokutil --import ${PUBLIC} ; then
+		echo "Error: Failed to register ${PUBLIC} in MOK!"
+	fi
+
+elif [ "${command}" == "config" ] ; then
+
+	read -p "Country Code (i.e. United States = US): " COUNTRY
+	read -p "State/Province Name: " PROVINCE
+	read -p "locality/City Name: " LOCALITY
+	read -p "Organization Name (default = ): " ORGANIZATION
+	read -p "Common Name (default Signing Key): " COMMON
+	read -p "Email (default = $(users)@$(hostname)): " EMAIL
+
+	if [ ! "${ORGANIZATION}" ] || [ "${ORGANIZATION}" == "none" ] ; then
+		ORGANIZATION="none"
+	fi
+
+	if [ ! "${COMMON}" ] || [ "${COMMON}" == " Signing Key" ] ; then
+		COMMON="Signing Key"
+	fi
+
+	if [ ! "${EMAIL}" ] || [ "${EMAIL}" == "none" ] ; then
+		EMAIL="$(hostname)@$(users)"
+	fi
+
+# Default openssl.cnf for mokutil-key.
+cat <<EOF > ${DIR}/openssl.cnf
+# This definition stops the following lines choking if HOME isn't
+# defined.
+HOME                    = .
+RANDFILE                = \$ENV::HOME/.rnd
+
+[ req ]
+distinguished_name      = req_distinguished_name
+x509_extensions         = v3
+string_mask             = utf8only
+prompt                  = no
+
+[ req_distinguished_name ]
+countryName             = ${COUNTRY}
+stateOrProvinceName     = ${PROVINCE}
+localityName            = ${LOCALITY}
+0.organizationName      = ${ORGANIZATION}
+commonName              = ${COMMON}
+emailAddress            = ${EMAIL}
+
+[ v3 ]
+subjectKeyIdentifier    = hash
+authorityKeyIdentifier  = keyid:always,issuer
+basicConstraints        = critical,CA:FALSE
+extendedKeyUsage        = codeSigning,1.3.6.1.4.1.311.10.3.6,1.3.6.1.4.1.2312.16.1.2
+nsComment               = "OpenSSL Generated Certificate"
+EOF
 
 fi
