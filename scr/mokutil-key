@@ -9,7 +9,7 @@ DIR="/home/$(users)/.mok"	# Default directory is required.
 
 VERSION="version 0.9.1.18"	# Version
 
-# Display this helpful options.
+# Display these helpful options.
 USAGE="mokutil-key ${VERSION} (mokutil)
 Usage: mokutil-key [Options]
        mokutil-key [options] [key options]=arg ... [path options]=arg
@@ -52,11 +52,13 @@ eval set -- "${GETOPT}"
 # Root access is required for most options.
 if [ ! "${EUID}" == "0" ] ; then
 
-	# Check if the help option is used.
+	# Check if the help/version option is used and if so exit cleanly
 	if [ "${1}" == "--help" ] ; then
 		echo "${USAGE}"
+		exit 0
 	elif [ "${1}" == "--version" ] ; then
-		version
+		echo "mokutil-key: ${VERSION}"
+		exit 0
 	else
 		echo "mokutil-key requires root access"
 		exit 1
@@ -80,8 +82,9 @@ elif [ ! "${EUID}" == "1" ] ; then
 			-c|--configure) command="config" ;;
 			-g|--generate-keys) command="genkey" ;;
 			-r|--register-key) command="regkey" ;;
-			--help)	;;
-			--version) ;;
+			# Just in case root was used.
+			--help)	echo "${USAGE}" ;;
+			--version) echo "mokutil-key: ${VERSION}" ;;
 			# Key Options
 			--key-private)
 				export PRIVATE=$(echo ${2} | awk -F'=' '{print $1}')
@@ -245,19 +248,18 @@ elif [ "${command}" == "modone" ] || [ "${command}" == "modall" ] ; then
 
 	elif [ "${command}" == "modall" ] ; then
 
-		if [ ! -d ${DIR_PATH} ] ; then
-			echo "Error: directory ${DIR_PATH} does not exist."
-			exit 1
-		else
+		echo "${DIR_PATH}"
+
+		if [ -d ${DIR_PATH} ] ; then
 
 			for modules in $(find ${DIR_PATH}/ -name *.ko -printf '%P\n') ; do
 
 				# Sign every module.
-				if ! kmodsign sha512 ${PRIVATE} ${PUBLIC} ${DIR_PATH} 2> /dev/null ; then
+				if ! kmodsign sha512 ${PRIVATE} ${PUBLIC} ${DIR_PATH}/${modules} 2> /dev/null ; then
 					echo "Error: signing ${DIR_PATH} failed!"
 					exit 1
 				else
-					echo "Signed: ${DIR_PATH}"
+					echo "Signed: ${DIR_PATH}/${modules}"
 				fi
 
 			done

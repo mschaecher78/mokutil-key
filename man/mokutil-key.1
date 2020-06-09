@@ -1,0 +1,25 @@
+'\" t
+.\"     Title: mokutil-key
+.\"    Author: Michael L. Schaecher
+.\"  Homepage: <https://github.com/mschaecher78/mokutil-key/>
+.\"      Date: 23\ \&May\ \&2020
+.\"    Manual: mokutil-key
+.\"    Source: mokutil-key 0.9.1.18
+.\"  Language: English
+.\"
+.TH "MOKUTIL-KEY" "1" "09\ \&June\ \&2020"
+.\"
+.SH "NAME"
+.PP
+mokutil-key \- Sign kernel/grub binary image's and kernel modules with generated keys.
+.SH SYNOPSIS
+.PP
+mokutil-key [ options ] [ key options ] .. [ path option ] .. [ optional ] ..
+.SH DESCRIPTION
+.PP
+\fBMOKUTIL-KEY\fR,
+is a utility designed to make the importing, signing and creating \fBopenssl\fR private/public keys easier, by
+working with builtin tool available in most Linux distro's. By the default file name \fBMOK\fR will be used if
+no other options are entered. Located in a hidden directory of the users home fold i.e. (\fB/home/user/.mok/\fR).
+.PP
+
