@@ -7,7 +7,7 @@ set -e
 
 DIR="/home/$(users)/.mok"	# Default directory is required.
 
-VERSION="version 0.9.1.18"	# Version
+VERSION="version 0.9.5.0"	# Version
 
 # Display these helpful options.
 USAGE="mokutil-key ${VERSION} (mokutil)
