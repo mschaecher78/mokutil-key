@@ -22,4 +22,101 @@ is a utility designed to make the importing, signing and creating \fBopenssl\fR 
 working with builtin tool available in most Linux distro's. By the default file name \fBMOK\fR will be used if
 no other options are entered. Located in a hidden directory of the users home fold i.e. (\fB/home/user/.mok/\fR).
 .PP
-
+.TP
+\fB-a, --modules-all\fR
+Sign all kernel mdoules in a give directory.
+.TP
+\fB-m, --module\fR
+Sign single kernel module. Useful for modules built outside of main kenrel.
+.TP
+\fB-i, --image\fR
+Sign kernel/bootload binary image, such as custom efi binaries and vmlinux kernel image.
+.TP
+\fB-c, --configure\fR
+Configure openssl.cnf file used be openssl to create private/public key pair. File well be located in
+\fB/home/user/.mok\fR. This will be be the default config file used to generate the private and pulbic
+keys if none is set with \fBopenssl-config\fR option.
+.TP
+\fB-g, --generate-keys\fR
+Create a private and public key pairs. for more info see \fBGENERATE KEYS\fR.
+.TP
+\fB-r, --register-key\fR
+Registers a public \fBPEM\fR key into MOK (Machine Owner Key) Management.
+.TP
+\fB--key-private=PRIVATE_KEY\fR
+Set the pirvate key to use to for sign file/image. If option is omitted then the default will be used if one exists.
+.TP
+\fB--key-public=PUBLIC_KEY\fR
+Set corresponding public key if \fBkey-private\fR option is set.
+.TP
+\fB--path=PATH\fR
+Path to directory or binary image file. Fore more info see \fBSIGN MODULES AND IMAGE\fR.
+.TP
+\fB-n, --use-file-name=NAME\fR
+file name for the keys, default is \fBMOK\fR if option is omitted. for more info see \fBGENERATE KEYS\fR.
+.TP
+\fB-s, --set-rsa-szie=SIZE\fR
+Set the bit size of the the key pair between 2048 - 16384. for more info see \fBGENERATE KEYS\fR.
+.TP
+\fB--openssl-config=FILE\fR
+Use different configuration file to generate the keys.
+.TP
+\fB-h, --help\fR
+Displays mokutil-key help info.
+.TP
+\fB-v, --version\fR
+Display mokutil-key version.
+.PP
+.SH GENERATE KEYS
+Create private/public key pair for signing kernel binary image and kernel modules. The default option is commonly
+found in tutorials for Ubuntu, Arch, OpenSuse and REL.
+.PP
+Generate default MOK keys.
+.PP
+\fB	mokutil-key --generate-key or mokutil-key -g\fR
+.PP
+Generate key with different filename use letters, numbers and special charcators as \fBfoo@bar1\fR. Use the
+following command.
+.PP
+\fB	mokutil-key --generate-key --use-file-name=foo@bar1\fR
+.PP
+A rsa size can be given a different interger value between \fB2048 (default) - 16384\fR. Most reccomend 2048, but RedHat
+reccomends 4096.
+.PP
+\fB	mokutil-key --generate-key --set-rsa-szie=2048\fR
+.PP
+For a combination for changing both the filename to \fBfoo@bar1\fR and rsa key size ot \fB4096\fR.
+.PP
+\fB	mokutil-key --generate-key --use-file-name=foo@bar1 --set-rsa-szie=2048\fR
+.SH SIGNING
+.PP
+Signing either modules, or kernel \fBvmlinux-(version)\fR is straight forward. This can be done with a compiled kernel
+or installed one. \fBWARNING\fR: The kernel and modules must be signed with the same key type, otherwise you will
+see a warning about a none matching key. Signing a kernel binary also requires that the \fBinitram image\fR be rebuilt.
+See the man page for \fBinitramfs\fR for more details on how this is done.
+.PP
+Mokutil-key can also sign a single kernel module, this is useful for modules built outside of the main installed/compiled
+kernel. It is possible to sign efi binary images, but this is discouraged.
+.PP
+Signing binary kernel vmlinux image.
+.PP
+\fB	mokutil-key --image --path=/path/to/vmlinux-(version)\fR
+.PP
+Signing single module build outside of main installed kernel.
+.PP
+\fB	mokutil-key --module --path=/path/to/(module binary)\fR
+.PP
+Signing all modules.
+.PP
+\fB	mokutil-key --modules-all --path/path/to/module/kernel-(version)/directory
+.PP
+Signing with a different key if key was not generated with mokutil-key and one is alread register to shim.
+.PP
+\fB	mokutil-key --(image, module, modules-all) --key-private=/path/to/(private key) --key-public=/path/to/(public key)
+.PP
+.SH ALSO SEE
+.PP
+\fBsbsign\fR,
+\fBkmodsign\fR,
+\fBopenssl\fR and
+\fBmokutil\fR.
