@@ -16,8 +16,8 @@ Clean up
 `make clean`
 
 Todo List:
-	[] Write bash completion script.
-	[] Add private/public key verification.
-	[] Make path part of signing image/file.
-	[] Add option to delet key from MOK.
-	[x] Create manpage.
+	- [] Write bash completion script.
+	- [] Add private/public key verification.
+	- [] Make path part of signing image/file.
+	- [] Add option to delet key from MOK.
+	- [x] Create manpage.
