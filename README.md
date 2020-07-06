@@ -1,7 +1,23 @@
 # MOKUTIL-KEY
 
-Install with `sudo make install`.
+Understanding how to setup and use openssl key for use for secure boot can be a chore. Mostly
+since the guides on how to do this are either to wordy or not wordy enough. This simple bash
+script is designed to make life easier (mostly for me).
 
-TODO:
-1.	Write bash completion script.
-2.	Add private/public key verification.
+
+
+Install
+`sudo make install`
+
+Build deb package
+`make package`
+
+Clean up
+`make clean`
+
+Todo List:
+	[] Write bash completion script.
+	[] Add private/public key verification.
+	[] Make path part of signing image/file.
+	[] Add option to delet key from MOK.
+	[x] Create manpage.
