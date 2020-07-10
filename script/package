@@ -1,0 +1,4 @@
+#!/bin/bash
+
+# This is script is designed to build a debian package.
+set -e

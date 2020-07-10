@@ -5,8 +5,6 @@
 
 set -e
 
-DIR="/home/$(users)/.mok"	# Default directory is required.
-
 
 # Display these helpful options.
 USAGE="mokutil-key ${VERSION} (mokutil)
@@ -29,9 +27,6 @@ Key Options:
           --key-public=PUBLIC_KEY        Set corresponding public key. If these options are omitted then then the default
                                          keys generated with mokutil-key will be used.
 
-Directory/Path Options:
-          --path=PATH                    This option is used for the path the the lib/module/\"kernel version\" path.
-
 Optional:
     -n,   --use-file-name=NAME           file name for the keys, default is MOK if option is omitted.
     -s,   --set-rsa-szie=SIZE            Set the bit size of the the key pair between 2048 - 16384. The default size is
@@ -41,9 +36,25 @@ Optional:
 mokutil-key home <https://www.github.com/mschaecher78/mokutil-key/>
 Copyright (C) 2020 <Michael L. Schaecher> GPL v2"
 
+# Set the variables even if the command is not being use, this well
+# help to make the script consistent.
+export DIR="/home/$(users)/.mok"
+export DER="${DIR}/MOK.der"
+export PEM="${DIR}/MOK.pem"
+export PRIVATE="${DIR}/MOK.priv"
+export SIZE="2048"
+export EXPIRE="36500"
+
+# Figure out which config to set as the default.
+if [ ! -f ${DIR}/openssl.cnf ] ; then
+	export CONFIG="/usr/lib/mokuntil-key/mokuntil-key.conf"
+else
+	export CONFIG="${DIR}/openssl.cnf"
+fi
+
 # getopt
-GETOPT=$(getopt -n mokutil-key -o 'a,m,i,c,g,r,h,v,n:,s:x:' -l 'modules-all,module,image,configure,generate-keys' \
-	-l 'register-key,help,version,key-private:,key-public:,path:,file-name:,rsa-size:,openssl-config:expire:' \
+GETOPT=$(getopt -n mokutil-key -o 'c,g,r,h,v,i:,a:,m:,n:,s:x:' -l 'configure,generate-keys,register-key,help,version,' \
+	-l 'modules-all:,module:,image:,key-private:,key-public:,file-name:,rsa-size:,openssl-config:expire:' \
 	-- $@)
 
 eval set -- "${GETOPT}"
@@ -76,8 +87,14 @@ elif [ ! "${EUID}" == "1" ] ; then
 
 			# Options
 			-a|--modules-all) command="modall" ;;
-			-m|--module) command="modone" ;;
-			-i|--image) command="binary" ;;
+			-m|--module)
+				MODULE=$(echo ${2} | awk -F'=' '{print $1}')
+				command="modone" && shift
+			;;
+			-i|--image)
+				IMAGE=$(echo ${2} | awk -F'=' '{print $1}')
+				command="binary" && shift
+			;;
 			-c|--configure) command="config" ;;
 			-g|--generate-keys) command="genkey" ;;
 			-r|--register-key) command="regkey" ;;
@@ -108,10 +125,6 @@ elif [ ! "${EUID}" == "1" ] ; then
 					exit 1
 				fi
 
-				shift
-			;;
-			--path)
-				export DIR_PATH=$(echo ${2} | awk -F'=' '{print $1}')
 				shift
 			;;
 			# These options are optional.
@@ -164,36 +177,7 @@ elif [ ! "${EUID}" == "1" ] ; then
 	done
 fi
 
-# Set the variables even if the command is not being use, this well
-# help to make the script consistent.
-if [ ! "${NAME}" ] ; then
-	export NAME="${DIR}/MOK"
-else
-	export NAME="${DIR}/${NAME}"
-fi
 
-if [ ! "${SIZE}" ] ; then
-	export SIZE="2048"
-fi
-
-if [ ! "${CONFIG}" ] ; then
-	export CONFIG="${DIR}/openssl.cnf"
-fi
-
-if [ ! "${EXPIRE}" ] ; then
-	export EXPIRE="36500"
-fi
-
-if [ ! "${PRIVATE}" ] ; then
-	export PRIVATE="/home/$(users)/.mok/MOK.priv"
-fi
-
-# If no public key entered make sure that the right default is used
-# for the right object being signed.
-if [ ! "${PUBLIC}" ] ; then
-	export PUBLIC_PEM="${DIR}/MOK.pem"
-	export PUBLIC_DER="${DIR}/MOK.der"
-fi
 
 # Which command options was give.
 if [ "${command}" == "genkey" ] ; then
@@ -269,16 +253,25 @@ elif [ "${command}" == "modone" ] || [ "${command}" == "modall" ] ; then
 
 elif [ "${command}" == "binary" ] ; then
 
-	if [ ! "${PUBLIC}" ] ; then
-		export PUBLIC=${PUBLIC_PEM}
-	fi
+	# Only if key-public is used.
+	if [ ${PUBLIC} ] ; then PEM="${PUBLIC}" ; fi
 
-	if ! sbsign --key ${PRIVATE} --cert ${PUBLIC} ${DIR_PATH} --output ${DIR_PATH}.signed 2> /dev/null ; then
-		echo "Error: failed signing ${DIR_PATH}"
-		exit 1
+	# Verify that the right public key is used. Exit with error if
+	# the key is not.
+	if [ "$(ls ${PEM} | awk -F'.' '{print $3}')" == "pem" ] ; then
+
+		# Sign the binary image,
+		if ! sbsign --key ${PRIVATE} --cert ${PEM} ${IMAGE} \
+		--output ${IMAGE}.signed 2> /dev/null ; then
+			echo "Error: failed signing ${IMAGE}"
+			exit 1
+		else
+			mv -f ${IMAGE}.signed ${IMAGE}
+			echo "Signed: ${IMAGE}"
+		fi
 	else
-		mv -f ${DIR_PATH}.signed ${DIR_PATH}
-		echo "Signed: ${DIR_PATH}"
+		echo "Error: ${PEM} is not pem"
+		exit 1
 	fi
 
 elif [ "${command}" == "regkey" ] ; then

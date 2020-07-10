@@ -1,20 +1,22 @@
 #!/bin/make -f
 
 # Version
-export VERSION = 1.20.6.25
+RELEASE = 1
+LEVEL = 20
+SUBLEVEL = 7
 
+export VERSION = $(RELEASE).$(LEVEL).$(SUBLEVEL)
+# Since mokutil is common for most Linux distro keep name simple.
+export NAME = mokuntil-key
+
+# Use root directory.
 DEB = debian
-NAME = mokutil-key
+BIN = /usr/bin/$(NAM)
+DOC = /usr/share/doc/$(NAME)
+MAN = /usr/share/man/$(NAM).1
+LIB = /usr/lib/$(NAME)
 
 package-deb:
-	@mkdir -p $(DEB)/$(NAME) $(DEB)/$(NAME)/usr/share/man $(DEB)/$(NAME)/usr/bin
-	@touch $(DEB)/changelog
-
-	# Set the version for the script.
-	@sed "10iVERSION=${VERSION}		# Version" scr/mokutil-key > \
-		$(DEB)/$(NAME)/usr/bin/mokuntil-key
-
-	#
 
 
 # Either install directly or build as a debian package.

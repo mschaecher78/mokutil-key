@@ -7,17 +7,28 @@ script is designed to make life easier (mostly for me).
 
 
 Install
-`sudo make install`
+```
+sudo make install
+```
 
 Build deb package
-`make package`
+```
+make package
+```
 
 Clean up
-`make clean`
+```
+make clean
+```
 
 Todo List:
 - [ ] Write bash completion script.
 - [ ] Add private/public key verification.
 - [ ] Make path part of signing image/file.
-- [ ] Add option to delet key from MOK.
+- [ ] Add option to delete key from MOK.
 - [x] Create manpage.
+- [ ] Use Makefile to dictate version.
+- [x] Show help/version info without root be required.
+- [x] All for different openssl.conf to be used.
+- [x] All for file naming.
+- [x] Set rsa size.
