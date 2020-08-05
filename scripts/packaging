@@ -16,7 +16,7 @@ Homepage: https://www.github.com/mschaecher78/mokutil-key/
 
 Package:${NAME}
 Architecture: all
-Depends: sbsign, modsign, openssl, mokutil
+Depends: sbsigntool, openssl, mokutil
 Description: Generate keys
  for signing custom kernel images and modules.
 EOF
