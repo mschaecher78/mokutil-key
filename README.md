@@ -13,7 +13,7 @@ sudo make install
 
 Build deb package
 ```
-make package
+make package-deb
 ```
 
 Clean up
