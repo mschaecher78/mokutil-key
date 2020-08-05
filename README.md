@@ -24,10 +24,10 @@ make clean
 Todo List:
 - [ ] Write bash completion script.
 - [ ] Add private/public key verification.
-- [ ] Make path part of signing image/file.
+- [x] Make path part of signing image/file.
 - [ ] Add option to delete key from MOK.
 - [x] Create manpage.
-- [ ] Use Makefile to dictate version.
+- [x] Use Makefile to dictate version.
 - [x] Show help/version info without root be required.
 - [x] All for different openssl.conf to be used.
 - [x] All for file naming.

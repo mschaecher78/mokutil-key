@@ -1,0 +1,121 @@
+#!/bin/bash
+
+# This is script is designed to build a debian package.
+set -e
+
+function debian_control () {
+
+# Generate a control file
+cat <<EOF > ${DEB}/control
+Source: ${NAME}
+Section: networking
+Priority: optional
+Maintainer: ${DEBFULLNAME} <${DEBEMAIL}>
+Build-Depends: cp, gzip, dpkg
+Homepage: https://www.github.com/mschaecher78/mokutil-key/
+
+Package:${NAME}
+Architecture: all
+Depends: sbsign, modsign, openssl, mokutil
+Description: Generate keys
+ for signing custom kernel images and modules.
+EOF
+
+}
+
+function debian_changelog () {
+
+CHANGELOG=$(cat changelog)
+
+COMMIT=$(cat .git/COMMIT_EDITMSG)
+
+# Make sure that the commit message is not duplicated in then
+# changelog.
+if grep "* ${COMMIT}" changelog > /dev/null ; then
+	cp changelog ${DEB}/changelog
+else
+cat <<EOF > ${DEB}/changelog
+${NAME} (${VERSION}) ubuntu; urgency=medium
+
+  * ${COMMIT}
+
+ -- ${DEBFULLNAME} <${DEBEMAIL}>  $(date -R)
+
+${CHANGELOG}
+EOF
+fi
+
+cp -f ${DEB}/changelog changelog
+
+}
+
+case $1 in
+	bindeb-pkg)
+
+		# Create the directories for debian package
+		mkdir -vp ${DEB}/${NAME} ${DEB}/${NAME}/${BIN} ${DEB}/${NAME}/${DOC}/${NAME} \
+			${DEB}/${NAME}/${MAN} ${DEB}/${NAME}/DEBIAN
+
+		debian_changelog	# Build the changelog.
+
+		debian_control
+
+		# Avoid using cp to copy the main script because the version needs
+		# to be set.
+		if sed "8iVERSION=\"${VERSION}\"" \
+		scr/${NAME} > ${DEB}/${NAME}/${BIN}/${NAME} ; then
+			echo "installing: ${DEB}/${NAME}/${BIN}/${NAME}"
+
+			# Install the manpage
+			if cp -f man/mokutil-key.1 ${DEB}/${NAME}/${MAN}/${NAME}.1 ; then
+
+				if gzip -9 -f ${DEB}/${NAME}/${MAN}/${NAME}.1 ; then
+					echo "installing: ${DEB}/${NAME}/${MAN}/${NAME}.1"
+				else
+					echo "error: failed to install ${DEB}/${NAME}/${MAN}/${NAME}.1"
+					exit 1
+				fi
+
+			else
+				echo "error: failed to install ${DEB}/${NAME}/${MAN}/${NAME}.1"
+				exit 1
+			fi
+
+			# Install changelog and license.
+			if cp -f ${DEB}/changelog ${DEB}/${NAME}/${DOC}/${NAME} &&
+			cp -f LICENSE ${DEB}/${NAME}/${DOC}/${NAME}/copyright ; then
+
+				echo "installing: ${DEB}/${NAME}/${DOC}/${NAME}/copyright"
+
+				if gzip -9 -f ${DEB}/${NAME}/${DOC}/${NAME}/changelog ; then
+					echo "installing: ${DEB}/${NAME}/${DOC}/${NAME}/changelog"
+				else
+					echo "error: failed to install ${DEB}/${NAME}/${DOC}/${NAME}/changelog"
+
+				fi
+
+			else
+				echo "error: failed to install ${DEB}/${NAME}/${DOC}/${NAME}/*"
+			fi
+
+		else
+			echo "error: Failed to install ${DEB}/${NAME}/${BIN}/${NAME}"
+			exit 1
+		fi
+
+		cd ${DEB}/${NAME}
+
+		find . -type f ! -path './DEBIAN/*' -printf '%P\0' | xargs -r0 md5sum > DEBIAN/md5sums
+
+		cd ../../
+
+		if dpkg-gencontrol -p${NAME} -P"${DEB}/${NAME}" ; then
+			dpkg-deb --build ${DEB}/${NAME} ..
+		fi
+
+	;;
+	binrpm-pkg)
+	;;
+	tar-pkg)
+	;;
+esac

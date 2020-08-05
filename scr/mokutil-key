@@ -9,7 +9,7 @@ set -e
 # Display these helpful options.
 USAGE="mokutil-key ${VERSION} (mokutil)
 Usage: mokutil-key [Options]
-       mokutil-key [options] [key options]=arg ... [path options]=arg
+       mokutil-key [options]=arg [key options]=arg ...
 
 Options:
     -a,   --modules-all                  Sign all kernel mdoules.
@@ -28,8 +28,8 @@ Key Options:
                                          keys generated with mokutil-key will be used.
 
 Optional:
-    -n,   --use-file-name=NAME           file name for the keys, default is MOK if option is omitted.
-    -s,   --set-rsa-szie=SIZE            Set the bit size of the the key pair between 2048 - 16384. The default size is
+    -n,   --file-name=NAME           file name for the keys, default is MOK if option is omitted.
+    -s,   --rsa-size=SIZE            Set the bit size of the the key pair between 2048 - 16384. The default size is
                                          2048 bits.
           --openssl-config=FILE          Use different configuration file to generate the keys.
 
@@ -53,7 +53,7 @@ else
 fi
 
 # getopt
-GETOPT=$(getopt -n mokutil-key -o 'c,g,r,h,v,i:,a:,m:,n:,s:x:' -l 'configure,generate-keys,register-key,help,version,' \
+GETOPT=$(getopt -n mokutil-key -o 'c,g,r,h,v,i:,a:,m:,n:,s:' -l 'configure,generate-keys,register-key,help,version,' \
 	-l 'modules-all:,module:,image:,key-private:,key-public:,file-name:,rsa-size:,openssl-config:expire:' \
 	-- $@)
 
@@ -86,7 +86,10 @@ elif [ ! "${EUID}" == "1" ] ; then
 		case "${1}" in
 
 			# Options
-			-a|--modules-all) command="modall" ;;
+			-a|--modules-all) command="modall"
+				MODULES=$(echo ${2} | awk -F'=' '{print $1}')
+				command="modall" && shift
+			;;
 			-m|--module)
 				MODULE=$(echo ${2} | awk -F'=' '{print $1}')
 				command="modone" && shift
@@ -108,7 +111,7 @@ elif [ ! "${EUID}" == "1" ] ; then
 				# Assume that the file is the private key. If it is
 				# not then sign fo file well fail.
 
-				# Only test for file existants.
+				# Only test for file existents.
 				if [ ! -f ${PRIVATE} ] ; then
 					echo "Error: ${PRIVATE} does not seem to exist!"
 					exit 1
@@ -208,19 +211,21 @@ if [ "${command}" == "genkey" ] ; then
 elif [ "${command}" == "modone" ] || [ "${command}" == "modall" ] ; then
 
 	if [ ! "${PUBLIC}" ] ; then
-		export PUBLIC=${PUBLIC_DER}
+		export PUBLIC=${DER}
 	fi
 
 	# Which command option for module signing was used
 	if [ "${command}" == "modone" ] ; then
 
-		if [ ! -d ${DIR_PATH} ] ; then
-			echo "Error: directory ${DIR_PATH} does not exist."
+		echo "${PRIVATE} ${PUBLIC} ${MODULES}"
+
+		if [ ! -d ${MODULE} ] ; then
+			echo "Error: directory ${MODULE} does not exist."
 			exit 1
 		else
 
 			# Sign that sigle module.
-			if ! kmodsign sha512 ${PRIVATE} ${PUBLIC} ${DIR_PATH} 2> /dev/null ; then
+			if ! kmodsign sha512 ${PRIVATE} ${PUBLIC} ${MODULE} 2> /dev/null ; then
 				echo "Error: signing ${DIR_PATH} failed!"
 				exit 1
 			else
@@ -231,18 +236,16 @@ elif [ "${command}" == "modone" ] || [ "${command}" == "modall" ] ; then
 
 	elif [ "${command}" == "modall" ] ; then
 
-		echo "${DIR_PATH}"
+		if [ -d ${MODULES} ] ; then
 
-		if [ -d ${DIR_PATH} ] ; then
-
-			for modules in $(find ${DIR_PATH}/ -name *.ko -printf '%P\n') ; do
+			for modules in $(find ${MODULES}/ -name *.ko -printf '%P\n') ; do
 
 				# Sign every module.
-				if ! kmodsign sha512 ${PRIVATE} ${PUBLIC} ${DIR_PATH}/${modules} 2> /dev/null ; then
-					echo "Error: signing ${DIR_PATH} failed!"
+				if ! kmodsign sha512 ${PRIVATE} ${PUBLIC} ${MODULES}/${modules} 2> /dev/null ; then
+					echo "Error: signing ${MODULES} failed!"
 					exit 1
 				else
-					echo "Signed: ${DIR_PATH}/${modules}"
+					echo "Signed: ${MODULES}/${modules}"
 				fi
 
 			done
