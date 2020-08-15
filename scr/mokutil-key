@@ -280,11 +280,14 @@ elif [ "${command}" == "binary" ] ; then
 elif [ "${command}" == "regkey" ] ; then
 
 	if [ ! "${PUBLIC}" ] ; then
-		export PUBLIC=${PUBLIC_DER}
+		export PUBLIC=${DER}
 	fi
 
 	if ! mokutil --import ${PUBLIC} ; then
 		echo "Error: Failed to register ${PUBLIC} in MOK!"
+		exit 1
+	else
+		echo "registered: ${PUBLIC} key into (MOK)"
 	fi
 
 elif [ "${command}" == "config" ] ; then
