@@ -1,5 +1,11 @@
 mokutil-key (1.40.08) ubuntu; urgency=medium
 
+  * Fixed error that caused f key registion to fail.
+
+ -- Michael L. Schaecher <mschaecher78@gmail.com>  Sat, 15 Aug 2020 12:42:05 -0600
+
+mokutil-key (1.40.08) ubuntu; urgency=medium
+
   * fixed depends packaging error.
 
  -- Michael L. Schaecher <mschaecher78@gmail.com>  Wed, 05 Aug 2020 10:18:23 -0600

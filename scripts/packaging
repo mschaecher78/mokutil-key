@@ -64,6 +64,8 @@ case $1 in
 		# to be set.
 		if sed "8iVERSION=\"${VERSION}\"" \
 		scr/${NAME} > ${DEB}/${NAME}/${BIN}/${NAME} ; then
+
+			chmod 0755 ${DEB}/${NAME}/${BIN}/${NAME}
 			echo "installing: ${DEB}/${NAME}/${BIN}/${NAME}"
 
 			# Install the manpage
