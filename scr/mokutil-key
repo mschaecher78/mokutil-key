@@ -61,7 +61,7 @@ GETOPT=$(getopt -n mokutil-key -o 'c,g,r,h,v,i:,a:,m:,n:,s:,x:' \
 
 eval set -- "${GETOPT}"
 
-while true  ; do
+while true ; do
 
 	# Root access is required for most options.
 	if [ ! "${EUID}" == "0" ] ; then
@@ -241,7 +241,8 @@ while true  ; do
 				for modules in $(find ${MODULES}/ -name *.ko -printf '%P\n') ; do
 
 					# Sign every module.
-					if ! kmodsign sha512 ${PRIVATE} ${PUBLIC} ${MODULES}/${modules} 2> /dev/null ; then
+					if ! kmodsign sha512 ${PRIVATE} ${PUBLIC} \
+					${MODULES}/${modules} 2> /dev/null ; then
 						echo "Error: signing ${MODULES} failed!"
 						exit 1
 					else

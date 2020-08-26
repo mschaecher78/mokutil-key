@@ -1,3 +1,9 @@
+mokutil-key (1.41.0) ubuntu; urgency=medium
+
+  * Currect EOF.
+
+ -- Michael L. Schaecher <mschaecher78@gmail.com>  Wed, 26 Aug 2020 11:20:52 -0600
+
 mokutil-key (1.40.08) ubuntu; urgency=medium
 
   * Fixed error that caused f key registion to fail.
