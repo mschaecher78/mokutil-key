@@ -2,8 +2,8 @@
 
 # Version
 RELEASE = 1
-LEVEL = 40
-SUBLEVEL = 08
+LEVEL = 41
+SUBLEVEL = 0
 
 export VERSION = $(RELEASE).$(LEVEL).$(SUBLEVEL)
 # Since mokutil is common for most Linux distro keep name simple.
@@ -19,7 +19,7 @@ export DEB BIN DOC MAN LIB
 
 package-deb:
 	rm -Rf $(DEB)/*
-	scripts/packaging bindeb-pkg
+	fakeroot scripts/packaging bindeb-pkg
 
 
 # Either install directly or build as a debian package.
