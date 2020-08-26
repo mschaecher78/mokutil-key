@@ -1,6 +1,8 @@
 mokutil-key (1.41.0) ubuntu; urgency=medium
 
-  * Currect EOF.
+  * Currect EOF and update manpage.
+  * Was missing option to set key expiration date.
+  * Update changelog and version bump.
 
  -- Michael L. Schaecher <mschaecher78@gmail.com>  Wed, 26 Aug 2020 11:20:52 -0600
 
