@@ -1,13 +1,24 @@
 #!/bin/bash
 
 # mokutil-key home <https://www.github.com/mschaecher78/mokutil-key/>
-# Copyright (C) 2020 <Michael L. Schaecher> GPL v2
+# Copyright (C) 2020 <Michael L. Schaecher> GPL v3
 
 set -e
 
 
+# Putting the key location in the root file system, works out better
+# for scripted automation.
+export DIR="/usr/lib/mokutil-key"
+
+export DER="${DIR}/MOK.der"
+export PEM="${DIR}/MOK.pem"
+export PRIVATE="${DIR}/MOK.priv"
+export SIZE="2048"
+export EXPIRE="36500"
+
 # Display these helpful options.
-USAGE="mokutil-key ${VERSION} (mokutil)
+USAGE=$(cat <<EOF
+mokutil-key ${VERSION} (mokutil)
 Usage: mokutil-key [Options]
        mokutil-key [options]=arg [key options]=arg ...
 
@@ -35,16 +46,9 @@ Optional:
           --openssl-config=FILE          Use different configuration file to generate the keys.
 
 mokutil-key home <https://www.github.com/mschaecher78/mokutil-key/>
-Copyright (C) 2020 <Michael L. Schaecher> GPL v2"
-
-# Set the variables even if the command is not being use, this well
-# help to make the script consistent.
-export DIR="/home/$(users)/.mok"
-export DER="${DIR}/MOK.der"
-export PEM="${DIR}/MOK.pem"
-export PRIVATE="${DIR}/MOK.priv"
-export SIZE="2048"
-export EXPIRE="36500"
+Copyright (C) 2020 <Michael L. Schaecher> GPL v3
+EOF
+)
 
 # Figure out which config to set as the default.
 if [ ! -f ${DIR}/openssl.cnf ] ; then
